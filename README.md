@@ -1,41 +1,41 @@
 # PubMed MCP Server
 
-A Model Context Protocol (MCP) server that provides tools to search and retrieve papers from PubMed.
-This server allows AI agents (like Claude Desktop or Antigravity) to directly access medical literature.
+PubMedから論文を検索・取得するためのツールを提供するMCP (Model Context Protocol) サーバーです。
+Claude DesktopやAntigravityなどのAIエージェントが、医学文献データベースに直接アクセスすることを可能にします。
 
-## Features
+## 特徴
 
-- **Search PubMed**: Search for papers using keywords.
-- **Get Paper Details**: Retrieve abstracts, authors, and metadata for specific papers.
-- **API Key Support**: Supports NCBI API Key for higher rate limits.
-- **Stdio Communication**: Uses standard input/output for MCP communication (no HTTP server required).
+- **PubMed検索**: キーワードを使用して論文を検索できます。
+- **論文詳細の取得**: 特定の論文のアブストラクト（要約）、著者、書誌情報などを取得できます。
+- **API Key対応**: NCBI API Keyを設定することで、レート制限を緩和（最大10リクエスト/秒）できます。
+- **Stdio通信**: 標準入出力（Stdio）を使用して通信するため、外部HTTPサーバーを立てる必要がなく、安全かつ高速です。
 
-## Prerequisites
+## 前提条件
 
-- Python 3.10 or higher
-- `httpx` and `xmltodict` libraries
+- Python 3.10 以上
+- ライブラリ: `httpx`, `xmltodict`
 
-## Setup
+## セットアップ手順
 
-1.  **Clone the repository:**
+1.  **リポジトリのクローン:**
     ```bash
     git clone https://github.com/m0370/mcp-pubmed-server.git
     cd mcp-pubmed-server
     ```
 
-2.  **Create a virtual environment:**
+2.  **仮想環境の作成:**
     ```bash
     python3 -m venv .venv
     ```
 
-3.  **Install dependencies:**
+3.  **依存ライブラリのインストール:**
     ```bash
     ./.venv/bin/pip install -r requirements.txt
     ```
 
-## Configuration
+## 設定 (Configuration)
 
-Add the following configuration to your MCP client settings (e.g., `claude_desktop_config.json`):
+MCPクライアントの設定ファイル（例: `claude_desktop_config.json`）に以下の設定を追加してください。
 
 ```json
 {
@@ -53,28 +53,28 @@ Add the following configuration to your MCP client settings (e.g., `claude_deskt
 }
 ```
 
-*   Replace `/absolute/path/to/...` with the actual full path to your directory.
-*   (Optional) Add your NCBI API Key to the `env` section to increase rate limits (up to 10 requests/second). Without a key, the limit is 3 requests/second.
+*   `/absolute/path/to/...` の部分は、実際にこのリポジトリを配置したディレクトリの絶対パスに書き換えてください。
+*   **API Keyの設定（任意）**: `env` セクションに `NCBI_API_KEY` を設定すると、APIのレート制限が緩和されます（キーなし: 3回/秒 → キーあり: 10回/秒）。
 
-## Usage
+## 使い方
 
-Once configured, you can ask the AI:
+設定完了後、AIに対して以下のように話しかけることで機能を利用できます。
 
-> "Search for recent papers on HER2 positive gastric cancer treatment."
-> "Get the abstract for PMID 12345678."
+> 「HER2陽性胃癌の治療に関する最新の論文を検索して」
+> 「PMID 12345678 のアブストラクトを取得して要約して」
 
-## How it Works
+## 仕組み
 
-1.  **MCP Protocol**: The server implements the Model Context Protocol using JSON-RPC 2.0 over Stdio. It listens for requests on `stdin` and sends responses to `stdout`.
-2.  **PubMed API**: It uses the NCBI E-utilities API (`esearch` and `efetch`) to query the PubMed database.
-3.  **No External Server**: Unlike HTTP-based MCP servers, this runs as a local subprocess managed directly by the MCP client, ensuring security and low latency.
+1.  **MCPプロトコル**: JSON-RPC 2.0 プロトコルを使用し、標準入力（stdin）でリクエストを受け取り、標準出力（stdout）でレスポンスを返します。
+2.  **PubMed API**: 内部で NCBI E-utilities API (`esearch`, `efetch`) を呼び出し、データを取得しています。
+3.  **ローカル実行**: HTTPサーバーではなく、MCPクライアントのサブプロセスとしてローカルで動作するため、セキュリティリスクが低く、レスポンスも高速です。
 
-## Files
+## ファイル構成
 
-- `server_stdio.py`: The main server implementation (Stdio based).
-- `requirements.txt`: Python dependencies.
-- `server.py`: (Legacy) Implementation using the `mcp` SDK (requires Python 3.10+ and compatible environment).
+- `server_stdio.py`: メインのサーバー実装（Stdio版）。通常はこちらを使用します。
+- `requirements.txt`: 必要なPythonライブラリ一覧。
+- `server.py`: (旧版) `mcp` SDKを使用した実装例。環境によっては動作しない場合があります。
 
-## License
+## ライセンス
 
 MIT
