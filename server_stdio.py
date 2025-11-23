@@ -70,7 +70,15 @@ async def get_paper_details(pmid: str) -> str:
         data = xmltodict.parse(resp.text)
         
         try:
-            pubmed_article = data['PubmedArticleSet']['PubmedArticle']
+            # Check if PubMed returned valid data
+            if 'PubmedArticleSet' not in data or not data['PubmedArticleSet']:
+                return f"Error: PMID {pmid} not found. Please check the PMID and try again."
+            
+            pubmed_article_set = data['PubmedArticleSet']
+            if 'PubmedArticle' not in pubmed_article_set or not pubmed_article_set['PubmedArticle']:
+                return f"Error: PMID {pmid} not found. Please check the PMID and try again."
+            
+            pubmed_article = pubmed_article_set['PubmedArticle']
             article = pubmed_article['MedlineCitation']['Article']
             title = article.get('ArticleTitle', 'No title')
             
@@ -133,8 +141,11 @@ async def get_paper_details(pmid: str) -> str:
                 "links": links
             }
             return json.dumps(result, indent=2, ensure_ascii=False)
+        except KeyError:
+            return f"Error: PMID {pmid} not found or invalid. Please check the PMID and try again."
         except Exception as e:
-            return f"Error parsing details: {str(e)}"
+            logger.error(f"Error parsing details for PMID {pmid}: {e}")
+            return f"Error retrieving details for PMID {pmid}: {str(e)}"
 
 async def advanced_search_pubmed(
     query: str,
