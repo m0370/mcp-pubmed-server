@@ -86,12 +86,32 @@ async def search_pubmed(query: str, max_results: int = 5) -> str:
         for pmid in id_list:
             if pmid in uid_data:
                 item = uid_data[pmid]
+                # Extract author names
+                authors = item.get("authors", [])
+                author_names = []
+                for author in authors[:3]:  # First 3 authors
+                    if isinstance(author, dict):
+                        author_names.append(author.get("name", ""))
+                
+                # Detect publication type
+                pub_types = item.get("pubtype", [])
+                is_review = any("review" in pt.lower() for pt in pub_types)
+                
                 results.append({
                     "pmid": pmid,
                     "title": item.get("title", "No title"),
+                    "authors": ", ".join(author_names) if author_names else "No authors",
                     "pubdate": item.get("pubdate", "Unknown date"),
-                    "source": item.get("source", "Unknown source")
+                    "source": item.get("source", "Unknown source"),
+                    "is_review": is_review
                 })
+        
+        # Sort: original articles first, then reviews
+        results.sort(key=lambda x: (x["is_review"], id_list.index(x["pmid"])))
+        
+        # Remove is_review flag from output (internal use only)
+        for r in results:
+            del r["is_review"]
         
         return json.dumps(results, indent=2, ensure_ascii=False)
 
@@ -411,7 +431,7 @@ async def handle_message(message):
                     "tools": [
                         {
                             "name": "search_pubmed",
-                            "description": "Search PubMed for papers matching the query.",
+                            "description": "Search PubMed database and return REAL PMIDs with full details. CRITICAL WARNING: The PMIDs returned by this tool are the ONLY valid PMIDs. You MUST NOT generate, guess, or make up any PMIDs. NEVER cite a PMID that was not explicitly returned by this tool. Results are sorted to prioritize original research articles over reviews. Each result includes: PMID, full title, authors (first 3), publication date, journal name.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -434,7 +454,7 @@ async def handle_message(message):
                         },
                         {
                             "name": "advanced_search_pubmed",
-                            "description": "Advanced search with filters. Can handle natural language requests like 'Smith's 2023 papers on gastric cancer' or structured parameters. Filters: author name, journal name, publication date range.",
+                            "description": "Advanced PubMed search with filters (author, journal, date range). Returns REAL PMIDs only. CRITICAL WARNING: You MUST NOT generate or guess PMIDs. ONLY use PMIDs explicitly returned by this tool. NEVER cite a PMID that was not returned. Can parse natural language like 'Smith's 2023 gastric cancer papers'.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
