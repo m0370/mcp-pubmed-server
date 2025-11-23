@@ -109,4 +109,4 @@ VS Codeで「Claude Code」拡張機能を使用している場合も、同様�
 
 ## ライセンス
 
-GPLv2 (GNU General Public License version 2)
+MIT
