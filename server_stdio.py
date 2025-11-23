@@ -307,32 +307,67 @@ async def get_similar_articles(pmid: str, max_results: int = 5, high_impact_only
             resp = await client.get(f"{BASE_URL}/esummary.fcgi", params=summary_params)
             summary_data = resp.json()
             
-            results = []
+            # Separate results by journal quality and publication type
+            high_impact_results = []
+            other_results = []
             uid_data = summary_data.get("result", {})
+            
             for pmid_str in similar_pmids:
                 if pmid_str in uid_data:
                     item = uid_data[pmid_str]
                     journal = item.get("source", "")
+                    title = item.get("title", "No title")
                     
-                    # Filter by high-impact journals if requested
-                    if high_impact_only and not is_high_impact_journal(journal):
-                        continue
+                    # Detect review articles from title
+                    # (esummary API doesn't provide detailed publication types)
+                    is_review = False
+                    review_type = ""
+                    title_lower = title.lower()
                     
-                    results.append({
+                    if "meta-analysis" in title_lower or "metaanalysis" in title_lower:
+                        is_review = True
+                        review_type = " [Meta-Analysis]"
+                    elif "systematic review" in title_lower:
+                        is_review = True
+                        review_type = " [Systematic Review]"
+                    elif title_lower.startswith("review") or ": a review" in title_lower or "review article" in title_lower:
+                        is_review = True
+                        review_type = " [Review]"
+                    
+                    paper_info = {
                         "pmid": pmid_str,
-                        "title": item.get("title", "No title"),
+                        "title": title + review_type,
                         "pubdate": item.get("pubdate", "Unknown date"),
                         "source": journal,
-                        "authors": item.get("authors", [])
-                    })
+                        "authors": item.get("authors", []),
+                        "is_review": is_review
+                    }
                     
-                    # Stop if we have enough results
-                    if len(results) >= max_results:
-                        break
+                    # Categorize by journal impact
+                    if is_high_impact_journal(journal):
+                        high_impact_results.append(paper_info)
+                    else:
+                        other_results.append(paper_info)
+            
+            # Smart fallback logic
+            if high_impact_only:
+                # Prefer high-impact journals, but fallback if too few
+                if len(high_impact_results) >= max_results:
+                    results = high_impact_results[:max_results]
+                elif len(high_impact_results) >= max_results // 2:
+                    # If we have at least half from high-impact, use only those
+                    results = high_impact_results[:max_results]
+                else:
+                    # Not enough high-impact papers, include others
+                    results = high_impact_results + other_results
+                    results = results[:max_results]
+                    logger.info(f"Fallback: Only {len(high_impact_results)} high-impact papers found, including others")
+            else:
+                # No filtering, combine all results
+                results = high_impact_results + other_results
+                results = results[:max_results]
             
             if not results:
-                if high_impact_only:
-                    return f"No similar articles found in high-impact journals. Try without the high-impact filter."
                 return "No similar articles found."
             
             return json.dumps(results, indent=2, ensure_ascii=False)
