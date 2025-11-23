@@ -5,33 +5,24 @@ import httpx
 import xmltodict
 import logging
 
-import os
-
 # Configure logging to stderr so it doesn't interfere with stdout JSON-RPC
 logging.basicConfig(level=logging.INFO, stream=sys.stderr, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("pubmed-mcp")
 
 BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-API_KEY = os.environ.get("NCBI_API_KEY")
-
-def get_params(base_params: dict) -> dict:
-    """Helper to add API key to params if available"""
-    if API_KEY:
-        base_params["api_key"] = API_KEY
-    return base_params
 
 # --- Tool Implementations ---
 
 async def search_pubmed(query: str, max_results: int = 5) -> str:
     logger.info(f"Searching PubMed for: {query}")
     async with httpx.AsyncClient() as client:
-        search_params = get_params({
+        search_params = {
             "db": "pubmed",
             "term": query,
             "retmode": "json",
             "retmax": max_results,
             "sort": "relevance"
-        })
+        }
         resp = await client.get(f"{BASE_URL}/esearch.fcgi", params=search_params)
         data = resp.json()
         id_list = data.get("esearchresult", {}).get("idlist", [])
@@ -39,11 +30,11 @@ async def search_pubmed(query: str, max_results: int = 5) -> str:
         if not id_list:
             return "No results found."
 
-        summary_params = get_params({
+        summary_params = {
             "db": "pubmed",
             "id": ",".join(id_list),
             "retmode": "json"
-        })
+        }
         resp = await client.get(f"{BASE_URL}/esummary.fcgi", params=summary_params)
         summary_data = resp.json()
         
@@ -64,7 +55,7 @@ async def search_pubmed(query: str, max_results: int = 5) -> str:
 async def get_paper_details(pmid: str) -> str:
     logger.info(f"Fetching details for PMID: {pmid}")
     async with httpx.AsyncClient() as client:
-        fetch_params = get_params({"db": "pubmed", "id": pmid, "retmode": "xml"})
+        fetch_params = {"db": "pubmed", "id": pmid, "retmode": "xml"}
         resp = await client.get(f"{BASE_URL}/efetch.fcgi", params=fetch_params)
         data = xmltodict.parse(resp.text)
         

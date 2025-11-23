@@ -56,6 +56,38 @@ MCPクライアントの設定ファイル（例: `claude_desktop_config.json`�
 *   `/absolute/path/to/...` の部分は、実際にこのリポジトリを配置したディレクトリの絶対パスに書き換えてください。
 *   **API Keyの設定（任意）**: `env` セクションに `NCBI_API_KEY` を設定すると、APIのレート制限が緩和されます（キーなし: 3回/秒 → キーあり: 10回/秒）。
 
+### VS Code + Claude Codeでの利用
+
+VS Codeで「Claude Code」拡張機能を使用している場合も、同様にMCPサーバーを利用できます。
+
+1.  **VS Codeの設定ファイルを開く**:
+    *   `Cmd + Shift + P` (macOS) または `Ctrl + Shift + P` (Windows/Linux) でコマンドパレットを開く
+    *   「Preferences: Open User Settings (JSON)」を選択
+
+2.  **設定を追加**:
+    `settings.json` に以下を追加してください。
+
+    ```json
+    {
+      "claude.mcpServers": {
+        "pubmed": {
+          "command": "/absolute/path/to/mcp-pubmed-server/.venv/bin/python3",
+          "args": [
+            "/absolute/path/to/mcp-pubmed-server/server_stdio.py"
+          ],
+          "env": {
+            "NCBI_API_KEY": "YOUR_API_KEY_HERE"
+          }
+        }
+      }
+    }
+    ```
+
+3.  **VS Codeを再起動**: 設定を反映させるため、VS Codeを再起動してください。
+
+**注意**: 拡張機能によって設定キーが異なる場合があります（`claude.mcpServers` または `mcpServers` など）。詳細は各拡張機能のドキュメントをご確認ください。
+
+
 ## 使い方
 
 設定完了後、AIに対して以下のように話しかけることで機能を利用できます。
@@ -77,4 +109,4 @@ MCPクライアントの設定ファイル（例: `claude_desktop_config.json`�
 
 ## ライセンス
 
-MIT
+GPLv2 (GNU General Public License version 2)
