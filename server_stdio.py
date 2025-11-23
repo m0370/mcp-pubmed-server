@@ -19,6 +19,40 @@ def get_params(base_params: dict) -> dict:
         base_params["api_key"] = API_KEY
     return base_params
 
+# High-impact medical journals (top-tier)
+HIGH_IMPACT_JOURNALS = [
+    "N Engl J Med",
+    "Lancet",
+    "Lancet Oncol",
+    "JAMA",
+    "JAMA Oncol",
+    "BMJ",
+    "Nature",
+    "Nature Medicine",
+    "Nature Reviews Cancer",
+    "Cell",
+    "Science",
+    "J Clin Oncol",
+    "Ann Oncol",
+    "Cancer Cell",
+    "Cancer Discov",
+    "Clin Cancer Res",
+    "Ann Intern Med",
+    "Gastroenterology",
+    "Gut"
+]
+
+def is_high_impact_journal(journal_name: str) -> bool:
+    """Check if a journal is in the high-impact list"""
+    if not journal_name:
+        return False
+    # Normalize journal name for comparison
+    journal_normalized = journal_name.strip().lower()
+    for high_impact in HIGH_IMPACT_JOURNALS:
+        if high_impact.lower() in journal_normalized:
+            return True
+    return False
+
 # --- Tool Implementations ---
 
 async def search_pubmed(query: str, max_results: int = 5) -> str:
@@ -220,6 +254,93 @@ async def advanced_search_pubmed(
         
         return json.dumps(results, indent=2, ensure_ascii=False)
 
+async def get_similar_articles(pmid: str, max_results: int = 5, high_impact_only: bool = False) -> str:
+    """
+    Get similar articles for a given PMID using PubMed's elink API.
+    Optionally filter to show only high-impact journal publications.
+    """
+    logger.info(f"Getting similar articles for PMID: {pmid}, high_impact_only: {high_impact_only}")
+    
+    async with httpx.AsyncClient() as client:
+        # Get similar article PMIDs using elink
+        elink_params = get_params({
+            "dbfrom": "pubmed",
+            "db": "pubmed",
+            "id": pmid,
+            "cmd": "neighbor_score",
+            "retmode": "json"
+        })
+        
+        resp = await client.get(f"{BASE_URL}/elink.fcgi", params=elink_params)
+        data = resp.json()
+        
+        try:
+            linksets = data.get("linksets", [])
+            if not linksets:
+                return "No similar articles found."
+            
+            linkset = linksets[0]
+            linksetdbs = linkset.get("linksetdbs", [])
+            
+            similar_pmids = []
+            for db in linksetdbs:
+                if db.get("linkname") == "pubmed_pubmed":
+                    links = db.get("links", [])
+                    # Get more PMIDs if filtering by high-impact journals
+                    fetch_count = max_results * 3 if high_impact_only else max_results
+                    for link in links[:fetch_count]:
+                        if isinstance(link, dict):
+                            similar_pmids.append(str(link.get("id", "")))
+                        else:
+                            similar_pmids.append(str(link))
+                    break
+            
+            if not similar_pmids:
+                return "No similar articles found."
+            
+            # Get summaries for similar articles
+            summary_params = get_params({
+                "db": "pubmed",
+                "id": ",".join(similar_pmids),
+                "retmode": "json"
+            })
+            resp = await client.get(f"{BASE_URL}/esummary.fcgi", params=summary_params)
+            summary_data = resp.json()
+            
+            results = []
+            uid_data = summary_data.get("result", {})
+            for pmid_str in similar_pmids:
+                if pmid_str in uid_data:
+                    item = uid_data[pmid_str]
+                    journal = item.get("source", "")
+                    
+                    # Filter by high-impact journals if requested
+                    if high_impact_only and not is_high_impact_journal(journal):
+                        continue
+                    
+                    results.append({
+                        "pmid": pmid_str,
+                        "title": item.get("title", "No title"),
+                        "pubdate": item.get("pubdate", "Unknown date"),
+                        "source": journal,
+                        "authors": item.get("authors", [])
+                    })
+                    
+                    # Stop if we have enough results
+                    if len(results) >= max_results:
+                        break
+            
+            if not results:
+                if high_impact_only:
+                    return f"No similar articles found in high-impact journals. Try without the high-impact filter."
+                return "No similar articles found."
+            
+            return json.dumps(results, indent=2, ensure_ascii=False)
+            
+        except Exception as e:
+            logger.error(f"Error getting similar articles: {e}")
+            return f"Error retrieving similar articles: {str(e)}"
+
 # --- MCP Protocol Handling ---
 
 async def handle_message(message):
@@ -291,6 +412,19 @@ async def handle_message(message):
                                 },
                                 "required": ["query"]
                             }
+                        },
+                        {
+                            "name": "get_similar_articles",
+                            "description": "Find similar/related articles for a given PMID. Can optionally filter to show only high-impact journal publications (NEJM, Lancet, JAMA, Nature, etc.). Useful for literature review and finding related research.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "pmid": {"type": "string", "description": "PMID of the reference paper"},
+                                    "max_results": {"type": "integer", "default": 5, "description": "Maximum number of similar articles to return"},
+                                    "high_impact_only": {"type": "boolean", "default": False, "description": "If true, only return articles from high-impact journals (NEJM, Lancet, JAMA, Nature, etc.)"}
+                                },
+                                "required": ["pmid"]
+                            }
                         }
                     ]
                 }
@@ -315,6 +449,12 @@ async def handle_message(message):
                     pub_date_from=args.get("pub_date_from"),
                     pub_date_to=args.get("pub_date_to"),
                     max_results=args.get("max_results", 5)
+                )
+            elif name == "get_similar_articles":
+                result_content = await get_similar_articles(
+                    pmid=args.get("pmid"),
+                    max_results=args.get("max_results", 5),
+                    high_impact_only=args.get("high_impact_only", False)
                 )
             else:
                 raise ValueError(f"Unknown tool: {name}")
