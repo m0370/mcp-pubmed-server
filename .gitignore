@@ -8,3 +8,4 @@ venv/
 *.log
 TODO.md
 test_*.py
+.mcp.json
